@@ -1,5 +1,8 @@
 language: python
+python:
+    - "2.7"
+sudo: false
+install: pip install -r requirements.txt
 script:
-    - sudo env "PATH=$PATH" python tests/test_ping3.py
-    - sudo env "PATH=$PATH" python tests/test_command_line_ping3.py
-    - sudo env "PATH=$PATH" python tests/test_benchmark.py
+    - flake8 --ignore F401 securitybot/
+    - PYTHONPATH=$(pwd) py.test -v tests/
