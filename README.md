@@ -1,42 +1,141 @@
-# Hello Node!
+# go-ping
+[![PkgGoDev](https://pkg.go.dev/badge/github.com/go-ping/ping)](https://pkg.go.dev/github.com/go-ping/ping)
+[![Circle CI](https://circleci.com/gh/go-ping/ping.svg?style=svg)](https://circleci.com/gh/go-ping/ping)
 
-This project includes a Node.js server script and a web page that connects to it. The front-end page presents a form the visitor can use to submit a color name, sending the submitted value to the back-end API running on the server. The server returns info to the page that allows it to update the display with the chosen color. 🎨
+A simple but powerful ICMP echo (ping) library for Go, inspired by
+[go-fastping](https://github.com/tatsushid/go-fastping).
 
-[Node.js](https://nodejs.org/en/about/) is a popular runtime that lets you run server-side JavaScript. This project uses the [Fastify](https://www.fastify.io/) framework and explores basic templating with [Handlebars](https://handlebarsjs.com/).
+Here is a very simple example that sends and receives three packets:
 
-## Prerequisites
+```go
+pinger, err := ping.NewPinger("www.google.com")
+if err != nil {
+	panic(err)
+}
+pinger.Count = 3
+err = pinger.Run() // Blocks until finished.
+if err != nil {
+	panic(err)
+}
+stats := pinger.Statistics() // get send/receive/duplicate/rtt stats
+```
 
-You'll get best use out of this project if you're familiar with basic JavaScript. If you've written JavaScript for client-side web pages this is a little different because it uses server-side JS, but the syntax is the same!
+Here is an example that emulates the traditional UNIX ping command:
 
-## What's in this project?
+```go
+pinger, err := ping.NewPinger("www.google.com")
+if err != nil {
+	panic(err)
+}
 
-← `README.md`: That’s this file, where you can tell people what your cool website does and how you built it.
+// Listen for Ctrl-C.
+c := make(chan os.Signal, 1)
+signal.Notify(c, os.Interrupt)
+go func() {
+	for _ = range c {
+		pinger.Stop()
+	}
+}()
 
-← `public/style.css`: The styling rules for the pages in your site.
+pinger.OnRecv = func(pkt *ping.Packet) {
+	fmt.Printf("%d bytes from %s: icmp_seq=%d time=%v\n",
+		pkt.Nbytes, pkt.IPAddr, pkt.Seq, pkt.Rtt)
+}
 
-← `server.js`: The **Node.js** server script for your new site. The JavaScript defines the endpoints in the site back-end, one to return the homepage and one to update with the submitted color. Each one sends data to a Handlebars template which builds these parameter values into the web page the visitor sees.
+pinger.OnDuplicateRecv = func(pkt *ping.Packet) {
+	fmt.Printf("%d bytes from %s: icmp_seq=%d time=%v ttl=%v (DUP!)\n",
+		pkt.Nbytes, pkt.IPAddr, pkt.Seq, pkt.Rtt, pkt.Ttl)
+}
 
-← `package.json`: The NPM packages for your project's dependencies.
+pinger.OnFinish = func(stats *ping.Statistics) {
+	fmt.Printf("\n--- %s ping statistics ---\n", stats.Addr)
+	fmt.Printf("%d packets transmitted, %d packets received, %v%% packet loss\n",
+		stats.PacketsSent, stats.PacketsRecv, stats.PacketLoss)
+	fmt.Printf("round-trip min/avg/max/stddev = %v/%v/%v/%v\n",
+		stats.MinRtt, stats.AvgRtt, stats.MaxRtt, stats.StdDevRtt)
+}
 
-← `src/`: This folder holds the site template along with some basic data files.
+fmt.Printf("PING %s (%s):\n", pinger.Addr(), pinger.IPAddr())
+err = pinger.Run()
+if err != nil {
+	panic(err)
+}
+```
 
-← `src/pages/index.hbs`: This is the main page template for your site. The template receives parameters from the server script, which it includes in the page HTML. The page sends the user submitted color value in the body of a request, or as a query parameter to choose a random color.
+It sends ICMP Echo Request packet(s) and waits for an Echo Reply in
+response. If it receives a response, it calls the `OnRecv` callback
+unless a packet with that sequence number has already been received,
+in which case it calls the `OnDuplicateRecv` callback. When it's
+finished, it calls the `OnFinish` callback.
 
-← `src/colors.json`: A collection of CSS color names. We use this in the server script to pick a random color, and to match searches against color names.
+For a full ping example, see
+[cmd/ping/ping.go](https://github.com/go-ping/ping/blob/master/cmd/ping/ping.go).
 
-← `src/seo.json`: When you're ready to share your new site or add a custom domain, change SEO/meta settings in here.
+## Installation
 
-## Try this next 🏗️
+```
+go get -u github.com/go-ping/ping
+```
 
-Take a look in `TODO.md` for next steps you can try out in your new site!
+To install the native Go ping executable:
 
-___Want a minimal version of this project to build your own Node.js app? Check out [Blank Node](https://glitch.com/edit/#!/remix/glitch-blank-node)!___
+```bash
+go get -u github.com/go-ping/ping/...
+$GOPATH/bin/ping
+```
 
-![Glitch](https://cdn.glitch.com/a9975ea6-8949-4bab-addb-8a95021dc2da%2FLogo_Color.svg?v=1602781328576)
+## Supported Operating Systems
 
-## You built this with Glitch!
+### Linux
+This library attempts to send an "unprivileged" ping via UDP. On Linux,
+this must be enabled with the following sysctl command:
 
-[Glitch](https://glitch.com) is a friendly community where millions of people come together to build web apps and websites.
+```
+sudo sysctl -w net.ipv4.ping_group_range="0 2147483647"
+```
 
-- Need more help? [Check out our Help Center](https://help.glitch.com/) for answers to any common questions.
-- Ready to make it official? [Become a paid Glitch member](https://glitch.com/pricing) to boost your app with private sharing, more storage and memory, domains and more.
+If you do not wish to do this, you can call `pinger.SetPrivileged(true)`
+in your code and then use setcap on your binary to allow it to bind to
+raw sockets (or just run it as root):
+
+```
+setcap cap_net_raw=+ep /path/to/your/compiled/binary
+```
+
+See [this blog](https://sturmflut.github.io/linux/ubuntu/2015/01/17/unprivileged-icmp-sockets-on-linux/)
+and the Go [x/net/icmp](https://godoc.org/golang.org/x/net/icmp) package
+for more details.
+
+### Windows
+
+You must use `pinger.SetPrivileged(true)`, otherwise you will receive
+the following error:
+
+```
+socket: The requested protocol has not been configured into the system, or no implementation for it exists.
+```
+
+Despite the method name, this should work without the need to elevate
+privileges and has been tested on Windows 10. Please note that accessing
+packet TTL values is not supported due to limitations in the Go
+x/net/ipv4 and x/net/ipv6 packages.
+
+### Plan 9 from Bell Labs
+
+There is no support for Plan 9. This is because the entire `x/net/ipv4` 
+and `x/net/ipv6` packages are not implemented by the Go programming 
+language.
+
+## Maintainers and Getting Help:
+
+This repo was originally in the personal account of
+[sparrc](https://github.com/sparrc), but is now maintained by the
+[go-ping organization](https://github.com/go-ping).
+
+For support and help, you usually find us in the #go-ping channel of
+Gophers Slack. See https://invite.slack.golangbridge.org/ for an invite
+to the Gophers Slack org.
+
+## Contributing
+
+Refer to [CONTRIBUTING.md](https://github.com/go-ping/ping/blob/master/CONTRIBUTING.md)
