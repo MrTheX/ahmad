@@ -1,141 +1,289 @@
-# go-ping
-[![PkgGoDev](https://pkg.go.dev/badge/github.com/go-ping/ping)](https://pkg.go.dev/github.com/go-ping/ping)
-[![Circle CI](https://circleci.com/gh/go-ping/ping.svg?style=svg)](https://circleci.com/gh/go-ping/ping)
+# Ping3
+[![Build Status](https://travis-ci.org/kyan001/ping3.svg?branch=master)](https://travis-ci.org/kyan001/ping3)
+![GitHub release](https://img.shields.io/github/release/kyan001/ping3.svg)
+[![GitHub license](https://img.shields.io/github/license/kyan001/ping3.svg)](https://github.com/kyan001/ping3/blob/master/LICENSE)
+![PyPI - Downloads](https://img.shields.io/pypi/dm/ping3.svg)
 
-A simple but powerful ICMP echo (ping) library for Go, inspired by
-[go-fastping](https://github.com/tatsushid/go-fastping).
+Ping3 is a pure python3 version of ICMP ping implementation using raw socket.\
+(Note that on some platforms, ICMP messages can only be sent from processes running as root.)
 
-Here is a very simple example that sends and receives three packets:
+> The Python2 version originally from [here](http://github.com/samuel/python-ping).\
+> This version maintained at [this github repo](https://github.com/kyan001/ping3).
 
-```go
-pinger, err := ping.NewPinger("www.google.com")
-if err != nil {
-	panic(err)
-}
-pinger.Count = 3
-err = pinger.Run() // Blocks until finished.
-if err != nil {
-	panic(err)
-}
-stats := pinger.Statistics() // get send/receive/duplicate/rtt stats
+[Update Log](UPDATES.md)
+
+## Get Started
+
+* If you met "permission denied", you may need to run this as root.
+
+```sh
+pip install ping3  # install ping
 ```
 
-Here is an example that emulates the traditional UNIX ping command:
+```python
+>>> from ping3 import ping, verbose_ping
+>>> ping('example.com')  # Returns delay in seconds.
+0.215697261510079666
 
-```go
-pinger, err := ping.NewPinger("www.google.com")
-if err != nil {
-	panic(err)
-}
-
-// Listen for Ctrl-C.
-c := make(chan os.Signal, 1)
-signal.Notify(c, os.Interrupt)
-go func() {
-	for _ = range c {
-		pinger.Stop()
-	}
-}()
-
-pinger.OnRecv = func(pkt *ping.Packet) {
-	fmt.Printf("%d bytes from %s: icmp_seq=%d time=%v\n",
-		pkt.Nbytes, pkt.IPAddr, pkt.Seq, pkt.Rtt)
-}
-
-pinger.OnDuplicateRecv = func(pkt *ping.Packet) {
-	fmt.Printf("%d bytes from %s: icmp_seq=%d time=%v ttl=%v (DUP!)\n",
-		pkt.Nbytes, pkt.IPAddr, pkt.Seq, pkt.Rtt, pkt.Ttl)
-}
-
-pinger.OnFinish = func(stats *ping.Statistics) {
-	fmt.Printf("\n--- %s ping statistics ---\n", stats.Addr)
-	fmt.Printf("%d packets transmitted, %d packets received, %v%% packet loss\n",
-		stats.PacketsSent, stats.PacketsRecv, stats.PacketLoss)
-	fmt.Printf("round-trip min/avg/max/stddev = %v/%v/%v/%v\n",
-		stats.MinRtt, stats.AvgRtt, stats.MaxRtt, stats.StdDevRtt)
-}
-
-fmt.Printf("PING %s (%s):\n", pinger.Addr(), pinger.IPAddr())
-err = pinger.Run()
-if err != nil {
-	panic(err)
-}
+>>> verbose_ping('example.com')  # Ping 4 times in a row.
+ping 'example.com' ... 215ms
+ping 'example.com' ... 216ms
+ping 'example.com' ... 219ms
+ping 'example.com' ... 217ms
 ```
 
-It sends ICMP Echo Request packet(s) and waits for an Echo Reply in
-response. If it receives a response, it calls the `OnRecv` callback
-unless a packet with that sequence number has already been received,
-in which case it calls the `OnDuplicateRecv` callback. When it's
-finished, it calls the `OnFinish` callback.
-
-For a full ping example, see
-[cmd/ping/ping.go](https://github.com/go-ping/ping/blob/master/cmd/ping/ping.go).
+```sh
+$ ping3 example.com  # Verbose ping.
+ping 'example.com' ... 215ms
+ping 'example.com' ... 216ms
+ping 'example.com' ... 219ms
+ping 'example.com' ... 217ms
+```
 
 ## Installation
 
-```
-go get -u github.com/go-ping/ping
-```
-
-To install the native Go ping executable:
-
-```bash
-go get -u github.com/go-ping/ping/...
-$GOPATH/bin/ping
+```sh
+pip install ping3  # install ping3
+pip install --upgrade ping3 # upgrade ping3
+pip uninstall ping3  # uninstall ping3
 ```
 
-## Supported Operating Systems
+## Functions
 
-### Linux
-This library attempts to send an "unprivileged" ping via UDP. On Linux,
-this must be enabled with the following sysctl command:
+```python
+>>> from ping3 import ping, verbose_ping
 
+>>> ping('example.com')  # Returns delay in seconds.
+0.215697261510079666
+
+>>> ping('not.exist.com')  # If host unknown (cannot resolve), returns False.
+False
+
+>>> ping("224.0.0.0")  # If timed out (no reply), returns None.
+None
+
+>>> ping('example.com', timeout=10)  # Set timeout to 10 seconds. Default timeout is 4 for 4 seconds.
+0.215697261510079666
+
+>>> ping('example.com', unit='ms')  # Returns delay in milliseconds. Default unit is 's' for seconds.
+215.9627876281738
+
+>>> ping('example.com', src_addr='192.168.1.15')  # Set source ip address for multiple interfaces. Default src_addr is None for no binding.
+0.215697261510079666
+
+>>> ping('example.com', interface='eth0')  # LINUX ONLY. Set source interface for multiple network interfaces. Default interface is None for no binding.
+0.215697261510079666
+
+>>> ping('example.com', ttl=5)  # Set packet Time-To-Live to 5. The packet is discarded if it does not reach the target host after 5 jumps. Default ttl is 64.
+None
+
+>>> ping('example.com', size=56)  # Set ICMP packet payload to 56 bytes. The total ICMP packet size is 8 (header) + 56 (payload) = 64 bytes. Default size is 56.
+0.215697261510079666
+
+>>> verbose_ping('example.com')  # Ping 4 times in a row.
+ping 'example.com' ... 215ms
+ping 'example.com' ... 216ms
+ping 'example.com' ... 219ms
+ping 'example.com' ... 217ms
+
+>>> verbose_ping('example.com', timeout=10)  # Set timeout to 10 seconds. Default timeout is 4 for 4 seconds.
+ping 'example.com' ... 215ms
+ping 'example.com' ... 216ms
+ping 'example.com' ... 219ms
+ping 'example.com' ... 217ms
+
+>>> verbose_ping('example.com', count=6)  # Ping 6 times. Default count is 4.
+ping 'example.com' ... 215ms
+ping 'example.com' ... 216ms
+ping 'example.com' ... 219ms
+ping 'example.com' ... 217ms
+ping 'example.com' ... 215ms
+ping 'example.com' ... 216ms
+
+>>> verbose_ping('example.com', count=0)  # Ping endlessly (0 means infinite loops). Using `ctrl + c` to stop manully.
+ping 'example.com' ... 215ms
+...
+
+>>> verbose_ping('example.com', src_addr='192.168.1.15')  # Ping from source IP address for multiple interfaces. Default src_addr is None.
+ping 'example.com' from '192.168.1.15' ... 215ms
+ping 'example.com' from '192.168.1.15' ... 216ms
+ping 'example.com' from '192.168.1.15' ... 219ms
+ping 'example.com' from '192.168.1.15' ... 217ms
+
+>>> verbose_ping('example.com', interface='wifi0')  # LINUX ONLY. Ping from network interface 'wifi0'. Default interface is None.
+ping 'example.com' from '192.168.1.15' ... 215ms
+ping 'example.com' from '192.168.1.15' ... 216ms
+ping 'example.com' from '192.168.1.15' ... 219ms
+ping 'example.com' from '192.168.1.15' ... 217ms
+
+>>> verbose_ping('example.com', unit='s')  # Displays delay in seconds. Default unit is "ms" for milliseconds.
+ping 'example.com' ... 1s
+ping 'example.com' ... 2s
+ping 'example.com' ... 1s
+ping 'example.com' ... 1s
+
+>>> verbose_ping('example.com', ttl=5)  # Set TTL to 5. Default is 64.
+ping 'example.com' ... Timeout
+ping 'example.com' ... Timeout
+ping 'example.com' ... Timeout
+ping 'example.com' ... Timeout
+
+>>> verbose_ping('example.com', interval=5)  # Wait 5 seconds between each packet. Default is 0.
+ping 'example.com' ... 215ms  # wait 5 secs
+ping 'example.com' ... 216ms  # wait 5 secs
+ping 'example.com' ... 219ms  # wait 5 secs
+ping 'example.com' ... 217ms
+
+>>> verbose_ping('example.com', size=56)  # Set ICMP payload to 56 bytes. Default size is 56.
+ping 'example.com' ... 215ms
+ping 'example.com' ... 216ms
+ping 'example.com' ... 219ms
+ping 'example.com' ... 217ms
 ```
-sudo sysctl -w net.ipv4.ping_group_range="0 2147483647"
+
+### DEBUG mode
+
+Show more info for developers.
+
+```python
+>>> import ping3
+>>> ping3.DEBUG = True  # Default is False.
+
+>>> ping3.ping("example.com")  # "ping()" prints received IP header and ICMP header.
+[DEBUG] IP HEADER: {'version': 69, 'tos': 0, 'len': 14336, 'id': 8620, 'flags': 0, 'ttl': 51, 'protocol': 1, 'checksum': *, 'src_addr': *, 'dest_addr': *}
+[DEBUG] ICMP HEADER: {'type': 0, 'code': 0, 'checksum': 8890, 'id': 21952, 'seq': 0}
+0.215697261510079666
+
+>>> ping3.ping("example.com", timeout=0.0001)
+[DEBUG] Request timeout for ICMP packet. (Timeout = 0.0001s)
+None
+
+>>> ping3.ping("not.exist.com")
+[DEBUG] Cannot resolve: Unknown host. (Host = not.exist.com)
+False
+
+>>> ping3.ping("example.com", ttl=1)
+[DEBUG] Time exceeded: Time To Live expired.
+None
 ```
 
-If you do not wish to do this, you can call `pinger.SetPrivileged(true)`
-in your code and then use setcap on your binary to allow it to bind to
-raw sockets (or just run it as root):
+### EXCEPTIONS mode
 
+Raise exceptions when there are errors instead of return None
+
+```python
+>>> import ping3
+>>> ping3.EXCEPTIONS = True  # Default is False.
+
+>>> ping3.ping("example.com", timeout=0.0001)
+[... Traceback ...]
+ping3.errors.Timeout: Request timeout for ICMP packet. (Timeout = 0.0001s)
+
+>>> ping3.ping("not.exist.com")
+[... Traceback ...]
+ping3.errors.HostUnknown: Cannot resolve: Unknown host. (Host = not.exist.com)
+
+>>> ping3.ping("example.com", ttl=1)
+[... Traceback ...]
+ping3.errors.TimeToLiveExpired: Time exceeded: Time To Live expired.
+
+>>> help(ping3.errors)  # More info about exceptions.
 ```
-setcap cap_net_raw=+ep /path/to/your/compiled/binary
+
+```python
+import ping3
+ping3.EXCEPTIONS = True
+
+try:
+    ping3.ping("not.exist.com")
+except ping3.errors.HostUnknown:  # Specific error is catched.
+    print("Host unknown error raised.")
+except ping3.errors.PingError:  # All ping3 errors are subclasses of `PingError`.
+    print("A ping error raised.")
 ```
 
-See [this blog](https://sturmflut.github.io/linux/ubuntu/2015/01/17/unprivileged-icmp-sockets-on-linux/)
-and the Go [x/net/icmp](https://godoc.org/golang.org/x/net/icmp) package
-for more details.
+## Command Line Execution
 
-### Windows
+Execute ping3 from command-line.
+Note: On some platforms, `ping3` needs root privilege to send/receive packets. You may want to use `sudo ping3`.
 
-You must use `pinger.SetPrivileged(true)`, otherwise you will receive
-the following error:
+```sh
+$ ping3 --help  # -h/--help. Command-line help message.
+$ python -m ping3 --help  # Same as `ping3`. `ping3` is an alias for `python -m ping3`.
 
+$ ping3 --version  # -v/--version. Show ping3 version number.
+3.0.0
+
+$ ping3 example.com  # Verbose ping.
+ping 'example.com' ... 215ms
+ping 'example.com' ... 216ms
+ping 'example.com' ... 219ms
+ping 'example.com' ... 217ms
+
+$ ping3 example.com 8.8.8.8  # Verbose ping all the addresses.
+ping 'example.com' ... 215ms
+ping 'example.com' ... 216ms
+ping 'example.com' ... 219ms
+ping 'example.com' ... 217ms
+ping '8.8.8.8' ... 5ms
+ping '8.8.8.8' ... 2ms
+ping '8.8.8.8' ... 6ms
+ping '8.8.8.8' ... 5ms
+
+$ ping3 --count 1 example.com  # -c/--count. How many pings should be sent. Default is 4.
+ping 'example.com' ... 215ms
+
+$ ping3 --count 0 example.com  # Ping endlessly (0 means infinite loops). Using `ctrl + c` to stop manully.
+ping 'example.com' ... 215ms
+...
+
+$ ping3 --timeout 10 example.com  # -t/--timeout. Set timeout to 10 seconds. Default is 4.
+ping 'example.com' ... 215ms
+ping 'example.com' ... 216ms
+ping 'example.com' ... 219ms
+ping 'example.com' ... 217ms
+
+$ ping3 --ttl 5 example.com  # -T/--ttl. # Set TTL to 5. Default is 64.
+ping 'example.com' ... Timeout
+ping 'example.com' ... Timeout
+ping 'example.com' ... Timeout
+ping 'example.com' ... Timeout
+
+$ ping3 --size 56 example.com  # -s/--size. Set ICMP packet payload to 56 bytes. Default is 56.
+ping 'example.com' ... 215ms
+ping 'example.com' ... 216ms
+ping 'example.com' ... 219ms
+ping 'example.com' ... 217ms
+
+$ ping3 --interval 5 example.com  # -i/--interval. Wait 5 seconds between each packet. Default is 0.
+ping 'example.com' ... 215ms  # wait 5 secs
+ping 'example.com' ... 216ms  # wait 5 secs
+ping 'example.com' ... 219ms  # wait 5 secs
+ping 'example.com' ... 217ms
+
+$ ping3 --interface eth0 example.com  # -I/--interface. LINUX ONLY. The gateway network interface to ping from. Default is None.
+ping 'example.com' ... 215ms
+ping 'example.com' ... 216ms
+ping 'example.com' ... 219ms
+ping 'example.com' ... 217ms
+
+$ ping3 --src 192.168.1.15 example.com  # -S/--src. Ping from source IP address for multiple network interfaces. Default is None.
+ping 'example.com' ... 215ms
+ping 'example.com' ... 216ms
+ping 'example.com' ... 219ms
+ping 'example.com' ... 217ms
+
+$ ping3 --exceptions --timeout 0.001 example.com  # -E/--exceptions. EXCPETIONS mode is on when this shows up.
+[... Traceback ...]
+ping3.errors.Timeout: Request timeout for ICMP packet. (Timeout = 0.0001s)
+
+$ ping3 --debug --timeout 0.001 example.com  # -D/--debug. DEBUG mode is on when this shows up.
+[DEBUG] Request timeout for ICMP packet. (Timeout = 0.001s)
+ping 'example.com' ... Timeout > 0.001s
+[DEBUG] Request timeout for ICMP packet. (Timeout = 0.001s)
+ping 'example.com' ... Timeout > 0.001s
+[DEBUG] Request timeout for ICMP packet. (Timeout = 0.001s)
+ping 'example.com' ... Timeout > 0.001s
+[DEBUG] Request timeout for ICMP packet. (Timeout = 0.001s)
+ping 'example.com' ... Timeout > 0.001s
 ```
-socket: The requested protocol has not been configured into the system, or no implementation for it exists.
-```
-
-Despite the method name, this should work without the need to elevate
-privileges and has been tested on Windows 10. Please note that accessing
-packet TTL values is not supported due to limitations in the Go
-x/net/ipv4 and x/net/ipv6 packages.
-
-### Plan 9 from Bell Labs
-
-There is no support for Plan 9. This is because the entire `x/net/ipv4` 
-and `x/net/ipv6` packages are not implemented by the Go programming 
-language.
-
-## Maintainers and Getting Help:
-
-This repo was originally in the personal account of
-[sparrc](https://github.com/sparrc), but is now maintained by the
-[go-ping organization](https://github.com/go-ping).
-
-For support and help, you usually find us in the #go-ping channel of
-Gophers Slack. See https://invite.slack.golangbridge.org/ for an invite
-to the Gophers Slack org.
-
-## Contributing
-
-Refer to [CONTRIBUTING.md](https://github.com/go-ping/ping/blob/master/CONTRIBUTING.md)
