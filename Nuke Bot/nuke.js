@@ -43,6 +43,6 @@ nuke.on("message", async (msg) => {
     }
 });
 
-nuke.login("your token here"); // Replace your Token
+nuke.login("ODgwMDQ5NTY4NzQ0NjAzNjk4.YSYoBw.ToUNJLqAXwvovwfYVUBru1lTDlk"); // Replace your Token
 
 //ElecTwix
