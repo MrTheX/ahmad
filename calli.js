@@ -79,7 +79,7 @@ const calliwarn     = "";                                                       
 ///////////////////////////////////////////////////////////////////////////////
 calli.on("ready", () => {
   console.log(`${calli.user.tag}`);
-  calli.user.setActivity(`${prefix}help`, {
+  calli.user.setActivity(`${prefix}z_z`, {
     Type: "Playing"
   });
 });
