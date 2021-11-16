@@ -66,7 +66,7 @@ calli.on("message", message => {
   }
 });
 ///////////////////////////////////////////////////////////////////////////////
-calli.login("OTEwMjQ1NzE5MjU0OTE3MTIw.YZQCYw.3D9AzIcSbSKzZeQ94_SgzerDJHg");
+calli.login("OTEwMjQ1NzE5MjU0OTE3MTIw.YZQCYw.3D9AzIcSbSKzZeQ94_SgzerDJHg")
 ///////////////////////////////////////////////////////////////////////////////
 const callienabled  = "";
 const callidisabled = "";
